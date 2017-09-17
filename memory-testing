@@ -1,0 +1,25 @@
+#!/bin/bash
+if [[ $UID != 0 ]]; then
+    echo "Please run this script with sudo:"
+    echo "sudo $0 $*"
+exit 1
+fi
+
+#Buckets size are calculated on power of two
+
+TWO=2
+LOGFILE="bucket_mem_info.log"
+
+#for loop starts from 9 i.e 2^9 = 512. since, number of Buckets cannot be less than 512
+for i in {9..34}
+do
+    echo "*** Starting iteration for #$(($TWO**$i)) ***"  >> $LOGFILE
+    sysctl -w net.netfilter.nf_conntrack_buckets=$(($TWO**$i))
+    sleep 10
+    #print the memory utillization in MB
+    echo "memory information:"  >> $LOGFILE
+    free -m  >> $LOGFILE
+    sleep 2
+    echo "***********end************"  >> $LOGFILE
+done
+
