@@ -1,0 +1,59 @@
+#!/bin/bash
+if [[ $UID != 0 ]]; then
+        echo "Please run this script with sudo:"
+        echo "sudo $0 $*"
+exit 1
+fi
+#this script is for testing the Conenction tracking and Hashtable load factor.
+#for finding optimal performance, only loadfactor from 1 through 64 has been selected
+if [ -z "$1" ]; then
+    echo usage: $0 [nf_conntrack_max] [pcap-file to create connections] [pcap-file to reuse connections]
+    echo
+    echo e.g. $0 2097152 1M_capture.pcap 10M_merge_capture.pcap
+    echo
+    exit
+fi
+
+MAX_CONN=$1
+PCAP_CREATE=$2
+PCAP_REUSE=$3
+
+LOGFILE_CREATE="create.log"
+LOGFILE_REUSE="reuse.log"
+echo "Removing previous log files"
+rm $LOGFILE_CREATE
+rm $LOGFILE_REUSE
+
+echo "changing the connection tracking maximum value to be $1"
+echo "..."
+sysctl -w net.netfilter.nf_conntrack_max=$1
+sleep 2
+#The test is run 10 times each HT loadfactor
+for a in {1..10}
+do
+    echo "*** iteration #$a ***" >> $LOGFILE_CREATE
+    echo "*** iteration #$a ***" >> $LOGFILE_REUSE
+    echo "**********************" 
+    for i in 1 2 4 8 16 32 64 
+    do
+        BUCKET=$(($MAX_CONN/$i))
+	echo "*** Load factor #$i ***" >> $LOGFILE_CREATE
+        echo "1.Changing bucket size to $BUCKET" >> $LOGFILE_CREATE
+        echo "...................."
+        sysctl -w net.netfilter.nf_conntrack_buckets=$BUCKET
+        echo "2. Flushing conntrack" 
+        conntrack -F
+        sleep 2
+        echo "3. Creating new connections in conntrack" 
+        echo "...................."
+        taskset -c 16 tcpreplay --topspeed --loop=1 --enable-file-cache --intf1=source0s $PCAP_CREATE >> $LOGFILE_CREATE
+        sleep 2
+	echo "*** Load factor #$i ***" >> $LOGFILE_REUSE
+	echo "Bucket size is $BUCKET" >> $LOGFILE_REUSE
+	echo "4. Reusing connections in conntrack"
+	taskset -c 16 tcpreplay --topspeed --loop=1 --enable-file-cache --intf1=source0s $PCAP_REUSE >> $LOGFILE_REUSE
+	echo "**************************"
+    done
+    echo "**************************" 
+done
+
