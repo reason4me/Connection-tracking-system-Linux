@@ -1,4 +1,4 @@
-filename = "ganesh.txt"
+filename = "chain_4_8_8.txt"
 file_obj = open(filename, "w")
 file_obj.write("#!/bin/bash"+"\n")
 file_obj.write("*nat"+"\n")
